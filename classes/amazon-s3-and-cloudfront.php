@@ -1544,10 +1544,51 @@ class Amazon_S3_And_CloudFront extends AWS_Plugin_Base {
 	 */
 	function get_attachment_url( $post_id, $expires = null, $size = null, $meta = null, $headers = array(), $skip_rewrite_check = false ) {
 		if ( ! ( $s3object = $this->is_attachment_served_by_s3( $post_id, $skip_rewrite_check ) ) ) {
-			return false;
+			return $this->create_attachment_s3_url( $post_id, $expires, $size, $meta, $headers );
 		}
 
 		return $this->get_attachment_s3_url( $post_id, $s3object, $expires, $size, $meta, $headers );
+	}
+
+	function create_attachment_s3_url( $post_id, $expires = null, $size = null, $meta = null, $headers = array() )
+	{
+		$scheme = $this->get_s3_url_scheme();
+
+		// Assume default region, because we already pre uploaded there
+		$region = $this->translate_region( 'us-west-2' );
+
+		$domain_bucket = $this->get_s3_url_domain( $this->get_setting('bucket'), $region, $expires );
+
+		$meta = get_post_meta( $post_id, '_wp_attachment_metadata', true );
+		$s3object['key'] = 'images/'.$meta['file'];
+
+		if ( ! is_null( $size ) ) {
+
+
+			if ( isset( $meta['sizes'][ $size ]['file'] ) ) {
+				$size_prefix      = dirname( 'images/'.$meta['file'] );
+				$size_file_prefix = ( '.' === $size_prefix ) ? '' : $size_prefix . '/';
+
+				$s3object['key'] = $size_file_prefix . $meta['sizes'][ $size ]['file'];
+			}
+		}
+
+		if ( ! is_null( $expires ) && $this->is_plugin_setup() ) {
+			try {
+				$expires    = time() + $expires;
+				$secure_url = $this->get_s3client( $region )->getObjectUrl( $this->get_setting('bucket'), $s3object['key'], $expires, $headers );
+
+				return apply_filters( 'as3cf_get_attachment_secure_url', $secure_url, $s3object, $post_id, $expires, $headers );
+			}
+			catch ( Exception $e ) {
+				return new WP_Error( 'exception', $e->getMessage() );
+			}
+		}
+
+		$file = $this->encode_filename_in_path( $s3object['key'], $post_id );
+		$url  = $scheme . '://' . $domain_bucket . '/' . $file;
+
+		return apply_filters( 'as3cf_get_attachment_url', $url, $s3object, $post_id, $expires, $headers );
 	}
 
 	/**
