@@ -127,6 +127,7 @@ class Amazon_S3_And_CloudFront extends AWS_Plugin_Base {
 		add_filter( 'wp_prepare_attachment_for_js', array( $this, 'maybe_encode_wp_prepare_attachment_for_js' ), 99, 3 );
 		add_filter( 'image_get_intermediate_size', array( $this, 'maybe_encode_image_get_intermediate_size' ), 99, 3 );
 		add_filter( 'get_attached_file', array( $this, 'get_attached_file' ), 10, 2 );
+		add_filter ( 'wp_calculate_image_srcset', array( $this, 'maybe_encode_image_get_srcset' ), 5, 99 );
 
 		// Communication with S3, plugin needs to be setup
 		add_filter( 'wp_handle_upload_prefilter', array( $this, 'wp_handle_upload_prefilter' ), 1 );
@@ -1751,6 +1752,27 @@ class Amazon_S3_And_CloudFront extends AWS_Plugin_Base {
 		return $data;
 	}
 
+	public function maybe_encode_image_get_srcset($sources, $sizes, $image_src, $image_meta, $attachment_id)
+	{
+		foreach ($sources as $key=>$source)
+		{
+			$size = null;
+			foreach ($image_meta['sizes'] as $real_size=>$size_item)
+			{
+				if ($size_item['width'] === $source['value'])
+					$size = $real_size;
+			}
+
+			if (!$size)
+				$size = 'full';
+
+			$s3_url = $this->get_attachment_url($attachment_id, null, $size, $image_meta);
+			$sources[$key]['url'] = $this->encode_filename_in_path($s3_url, $attachment_id );
+		}
+
+
+		return $sources;
+	}
 	/**
 	 * Is attachment served by S3.
 	 *
