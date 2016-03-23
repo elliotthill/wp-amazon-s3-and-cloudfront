@@ -1856,7 +1856,11 @@ class Amazon_S3_And_CloudFront extends AWS_Plugin_Base {
 			if ( ! is_null( $attachment_id ) ) {
 				// Attempt to remove bucket from path using amazonS3_info key
 				$s3info = $this->get_attachment_s3_info( $attachment_id );
-				$bucket = $s3info['bucket'];
+				if (isset($s3info['bucket']))
+					$bucket = $s3info['bucket'];
+				else
+					$bucket = $this->get_setting( 'bucket' );
+				
 			} else {
 				// Attempt to remove bucket from path using tantan key
 				$bucket = $this->get_setting( 'bucket' );
